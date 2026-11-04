@@ -450,8 +450,10 @@ public class GameConstants {
     }
 
     public static int getJobBranch(Job job) {
-        int jobid = job.getId();
+        return getJobBranch(job.getId());
+    }
 
+    public static int getJobBranch(int jobid) {
         if (jobid % 1000 == 0) {
             return 0;
         } else if (jobid % 100 == 0) {

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- SP returned by SP Reset scrolls, per job tier (1st,2nd,3rd,4th), that can only be spent on that tier's skills -->
+    <changeSet id="characters-locked-sp" author="Elina-L">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="characters" columnName="lockedSp"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="characters">
+            <column name="lockedSp" type="VARCHAR(64)" defaultValue="0,0,0,0">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

@@ -25,11 +25,15 @@ import server.StatEffect;
 import server.life.Element;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Skill {
     private final int id;
     private final List<StatEffect> effects = new ArrayList<>();
+    private final Map<Integer, Integer> requiredSkills = new HashMap<>();
     private Element element;
     private int animationTime;
     private final int job;
@@ -96,5 +100,16 @@ public class Skill {
 
     public void addLevelEffect(StatEffect effect) {
         effects.add(effect);
+    }
+
+    /**
+     * @return skill id -> minimum level of that skill needed before this skill can be learned
+     */
+    public Map<Integer, Integer> getRequiredSkills() {
+        return Collections.unmodifiableMap(requiredSkills);
+    }
+
+    public void addRequiredSkill(int skillId, int level) {
+        requiredSkills.put(skillId, level);
     }
 }

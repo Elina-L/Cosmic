@@ -23,9 +23,6 @@ package net.server.channel.handlers;
 
 import client.Character;
 import client.Client;
-import client.Skill;
-import client.SkillFactory;
-import client.SkillMacro;
 import client.creator.veteran.BowmanCreator;
 import client.creator.veteran.MagicianCreator;
 import client.creator.veteran.PirateCreator;
@@ -174,61 +171,17 @@ public final class UseCashItemHandler extends AbstractPacketHandler {
                 return;
             }
 
+            // The client's from/to selection is ignored: the scrolls reset everything at once
+            boolean reset;
             if (itemId > ItemId.AP_RESET) {
-                int SPTo = p.readInt();
-                if (!AssignSPProcessor.canSPAssign(c, SPTo)) {  // exploit found thanks to Arnah
-                    return;
-                }
-
-                int SPFrom = p.readInt();
-                Skill skillSPTo = SkillFactory.getSkill(SPTo);
-                Skill skillSPFrom = SkillFactory.getSkill(SPFrom);
-                byte curLevel = player.getSkillLevel(skillSPTo);
-                byte curLevelSPFrom = player.getSkillLevel(skillSPFrom);
-                if ((curLevel < skillSPTo.getMaxLevel()) && curLevelSPFrom > 0) {
-                    player.changeSkillLevel(skillSPFrom, (byte) (curLevelSPFrom - 1), player.getMasterLevel(skillSPFrom), -1);
-                    player.changeSkillLevel(skillSPTo, (byte) (curLevel + 1), player.getMasterLevel(skillSPTo), -1);
-
-                    // update macros, thanks to Arnah
-                    if ((curLevelSPFrom - 1) == 0) {
-                        boolean updated = false;
-                        for (SkillMacro macro : player.getMacros()) {
-                            if (macro == null) {
-                                continue;
-                            }
-
-                            boolean update = false;// cleaner?
-                            if (macro.getSkill1() == SPFrom) {
-                                update = true;
-                                macro.setSkill1(0);
-                            }
-                            if (macro.getSkill2() == SPFrom) {
-                                update = true;
-                                macro.setSkill2(0);
-                            }
-                            if (macro.getSkill3() == SPFrom) {
-                                update = true;
-                                macro.setSkill3(0);
-                            }
-                            if (update) {
-                                updated = true;
-                                player.updateMacros(macro.getPosition(), macro);
-                            }
-                        }
-                        if (updated) {
-                            player.sendMacros();
-                        }
-                    }
-                }
+                reset = AssignSPProcessor.SPFullResetAction(c, itemId - ItemId.AP_RESET);
             } else {
-                int APTo = p.readInt();
-                int APFrom = p.readInt();
-
-                if (!AssignAPProcessor.APResetAction(c, APFrom, APTo)) {
-                    return;
-                }
+                reset = AssignAPProcessor.APFullResetAction(c);
             }
-            remove(c, position, itemId);
+
+            if (reset) {
+                remove(c, position, itemId);
+            }
         } else if (itemType == 506) {
             Item eq = null;
             if (itemId == 5060000) { // Item tag.

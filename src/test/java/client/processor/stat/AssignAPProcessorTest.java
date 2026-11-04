@@ -1,11 +1,22 @@
 package client.processor.stat;
 
+import client.Character;
+import client.Client;
 import client.Job;
 import org.junit.jupiter.api.Test;
+import tools.PacketCreator;
 
 import java.util.function.BiFunction;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AssignAPProcessorTest {
 
@@ -233,5 +244,32 @@ class AssignAPProcessorTest {
                 () -> assertEquals(2255, f.apply(Job.THUNDERBREAKER3, cygnus_max_level)),
                 () -> assertEquals(2255, f.apply(Job.THUNDERBREAKER4, cygnus_max_level))
         );
+    }
+
+    @Test
+    void apFullResetShouldConsumeScrollWhenApWasReturned() {
+        Client client = mock(Client.class);
+        Character chr = mock(Character.class);
+        when(client.getPlayer()).thenReturn(chr);
+        when(chr.resetStrDexIntLuk()).thenReturn(73);
+
+        assertTrue(AssignAPProcessor.APFullResetAction(client));
+
+        verify(chr).message(anyString());
+        verify(chr, never()).dropMessage(anyInt(), anyString());
+        verify(client, never()).sendPacket(any());
+    }
+
+    @Test
+    void apFullResetShouldKeepScrollWhenNothingCanBeReset() {
+        Client client = mock(Client.class);
+        Character chr = mock(Character.class);
+        when(client.getPlayer()).thenReturn(chr);
+        when(chr.resetStrDexIntLuk()).thenReturn(0);
+
+        assertFalse(AssignAPProcessor.APFullResetAction(client));
+
+        verify(chr).dropMessage(eq(1), anyString());
+        verify(client).sendPacket(PacketCreator.enableActions());
     }
 }

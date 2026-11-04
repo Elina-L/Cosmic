@@ -483,6 +483,29 @@ public class AssignAPProcessor {
         return Stat.STR;
     }
 
+    /**
+     * AP Reset scroll: returns all AP spent on STR, DEX, INT and LUK. HP and MP are left untouched.
+     *
+     * @return true if any AP was returned and the scroll should be consumed
+     */
+    public static boolean APFullResetAction(Client c) {
+        c.lockClient();
+        try {
+            Character player = c.getPlayer();
+            int refundedAp = player.resetStrDexIntLuk();
+            if (refundedAp < 1) {
+                player.dropMessage(1, "Your STR, DEX, INT and LUK are already at the minimum of 4.");
+                c.sendPacket(PacketCreator.enableActions());
+                return false;
+            }
+
+            player.message("AP Reset: " + refundedAp + " AP was returned and your STR, DEX, INT and LUK were reset to 4.");
+            return true;
+        } finally {
+            c.unlockClient();
+        }
+    }
+
     public static boolean APResetAction(Client c, int APFrom, int APTo) {
         c.lockClient();
         try {

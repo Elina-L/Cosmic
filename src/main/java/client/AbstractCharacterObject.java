@@ -36,10 +36,16 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author RonanLana
  */
 public abstract class AbstractCharacterObject extends AbstractAnimatedMapObject {
+    public static final int LOCKED_SP_TIERS = 4;
+    private static final int MAIN_SP_BOOK = 0;
+    private static final int MIN_BASE_STAT = 4;
+
     protected MapleMap map;
     protected int str, dex, luk, int_, hp, maxhp, mp, maxmp;
     protected int hpMpApUsed, remainingAp;
     protected int[] remainingSp = new int[10];
+    // SP returned by SP Reset scrolls is part of the main SP book, but lockedSp[i] can only be spent on (i + 1)th job skills
+    protected int[] lockedSp = new int[LOCKED_SP_TIERS];
     protected transient int clientmaxhp, clientmaxmp, localmaxhp = 50, localmaxmp = 5;
     protected float transienthp = Float.NEGATIVE_INFINITY, transientmp = Float.NEGATIVE_INFINITY;
 
@@ -263,6 +269,9 @@ public abstract class AbstractCharacterObject extends AbstractAnimatedMapObject 
 
     private void setRemainingSp(int remainingSp, int skillbook) {
         this.remainingSp[skillbook] = remainingSp;
+        if (skillbook == MAIN_SP_BOOK) {
+            trimLockedSp();
+        }
     }
 
     protected void setMaxHp(int hp_) {
@@ -745,6 +754,7 @@ public abstract class AbstractCharacterObject extends AbstractAnimatedMapObject 
         statWlock.lock();
         try {
             System.arraycopy(sps, 0, remainingSp, 0, sps.length);
+            trimLockedSp();
         } finally {
             statWlock.unlock();
             effLock.unlock();
@@ -768,6 +778,129 @@ public abstract class AbstractCharacterObject extends AbstractAnimatedMapObject 
         } finally {
             statWlock.unlock();
             effLock.unlock();
+        }
+    }
+
+    /**
+     * Lowers STR, DEX, INT and LUK to their minimum and returns the AP that was spent on them.
+     *
+     * @return the refunded AP, 0 if nothing changed
+     */
+    public int resetStrDexIntLuk() {
+        effLock.lock();
+        statWlock.lock();
+        try {
+            int refundedAp = Math.max(0, str - MIN_BASE_STAT) + Math.max(0, dex - MIN_BASE_STAT)
+                    + Math.max(0, int_ - MIN_BASE_STAT) + Math.max(0, luk - MIN_BASE_STAT);
+            if (refundedAp > 0) {
+                updateStrDexIntLuk(Math.min(str, MIN_BASE_STAT), Math.min(dex, MIN_BASE_STAT),
+                        Math.min(int_, MIN_BASE_STAT), Math.min(luk, MIN_BASE_STAT), remainingAp + refundedAp);
+            }
+            return refundedAp;
+        } finally {
+            statWlock.unlock();
+            effLock.unlock();
+        }
+    }
+
+    public int getLockedSp(int jobTier) {
+        statRlock.lock();
+        try {
+            return isLockedSpTier(jobTier) ? lockedSp[jobTier - 1] : 0;
+        } finally {
+            statRlock.unlock();
+        }
+    }
+
+    public int[] getLockedSps() {
+        statRlock.lock();
+        try {
+            return Arrays.copyOf(lockedSp, lockedSp.length);
+        } finally {
+            statRlock.unlock();
+        }
+    }
+
+    protected void setLockedSps(int[] sps) {
+        effLock.lock();
+        statWlock.lock();
+        try {
+            Arrays.fill(lockedSp, 0);
+            for (int i = 0; i < Math.min(sps.length, lockedSp.length); i++) {
+                lockedSp[i] = Math.max(0, sps[i]);
+            }
+            trimLockedSp();
+        } finally {
+            statWlock.unlock();
+            effLock.unlock();
+        }
+    }
+
+    /**
+     * Adds SP to the main SP book that can only be spent on skills of the given job tier.
+     */
+    public void refundLockedSp(int sp, int jobTier) {
+        if (!isLockedSpTier(jobTier)) {
+            throw new IllegalArgumentException("Invalid job tier for locked SP: " + jobTier);
+        }
+        if (sp < 1) {
+            return;
+        }
+
+        effLock.lock();
+        statWlock.lock();
+        try {
+            lockedSp[jobTier - 1] += sp;
+            changeRemainingSp(remainingSp[MAIN_SP_BOOK] + sp, MAIN_SP_BOOK, false);
+        } finally {
+            statWlock.unlock();
+            effLock.unlock();
+        }
+    }
+
+    /**
+     * Spends 1 SP from the main SP book on a skill of the given job tier. SP locked to that tier is used first,
+     * SP locked to other tiers is never used.
+     *
+     * @return false if there is no SP available for that tier
+     */
+    public boolean spendSkillPoint(int jobTier) {
+        effLock.lock();
+        statWlock.lock();
+        try {
+            if (isLockedSpTier(jobTier) && lockedSp[jobTier - 1] > 0) {
+                lockedSp[jobTier - 1]--;
+            } else if (remainingSp[MAIN_SP_BOOK] - getTotalLockedSp() < 1) {
+                return false;
+            }
+
+            changeRemainingSp(remainingSp[MAIN_SP_BOOK] - 1, MAIN_SP_BOOK, false);
+            return true;
+        } finally {
+            statWlock.unlock();
+            effLock.unlock();
+        }
+    }
+
+    private static boolean isLockedSpTier(int jobTier) {
+        return jobTier >= 1 && jobTier <= LOCKED_SP_TIERS;
+    }
+
+    private int getTotalLockedSp() {
+        int total = 0;
+        for (int sp : lockedSp) {
+            total += sp;
+        }
+        return total;
+    }
+
+    // Locked SP is part of the main SP book, so it can't exceed it, e.g. after a GM lowers the SP.
+    private void trimLockedSp() {
+        int excess = getTotalLockedSp() - Math.max(0, remainingSp[MAIN_SP_BOOK]);
+        for (int i = 0; i < lockedSp.length && excess > 0; i++) {
+            int trimmed = Math.min(lockedSp[i], excess);
+            lockedSp[i] -= trimmed;
+            excess -= trimmed;
         }
     }
 }

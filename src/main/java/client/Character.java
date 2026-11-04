@@ -6835,6 +6835,20 @@ public class Character extends AbstractCharacterObject {
         setRemainingSp(sps);
     }
 
+    private void loadLockedSkillPoints(String lockedSkillPoints) {
+        String[] values = lockedSkillPoints.split(",");
+        int[] lockedSps = new int[values.length];
+        for (int i = 0; i < values.length; i++) {
+            try {
+                lockedSps[i] = Integer.parseInt(values[i].trim());
+            } catch (NumberFormatException e) {
+                log.warn("Chr {} has an invalid locked SP value \"{}\", treating it as 0", name, values[i]);
+            }
+        }
+
+        setLockedSps(lockedSps);
+    }
+
     public int getRemainingSp() {
         return getRemainingSp(job.getId()); //default
     }
@@ -6881,6 +6895,7 @@ public class Character extends AbstractCharacterObject {
                     ret.hasMerchant = rs.getInt("HasMerchant") == 1;
                     ret.remainingAp = rs.getInt("ap");
                     ret.loadCharSkillPoints(rs.getString("sp").split(","));
+                    ret.loadLockedSkillPoints(rs.getString("lockedSp"));
                     ret.meso.set(rs.getInt("meso"));
                     ret.merchantmeso = rs.getInt("MerchantMesos");
                     ret.setGMLevel(rs.getInt("gm"));
@@ -8256,7 +8271,7 @@ public class Character extends AbstractCharacterObject {
             con.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
 
             try {
-                try (PreparedStatement ps = con.prepareStatement("UPDATE characters SET level = ?, fame = ?, str = ?, dex = ?, luk = ?, `int` = ?, exp = ?, gachaexp = ?, hp = ?, mp = ?, maxhp = ?, maxmp = ?, sp = ?, ap = ?, gm = ?, skincolor = ?, gender = ?, job = ?, hair = ?, face = ?, map = ?, meso = ?, hpMpUsed = ?, spawnpoint = ?, party = ?, buddyCapacity = ?, messengerid = ?, messengerposition = ?, mountlevel = ?, mountexp = ?, mounttiredness= ?, equipslots = ?, useslots = ?, setupslots = ?, etcslots = ?,  monsterbookcover = ?, vanquisherStage = ?, dojoPoints = ?, lastDojoStage = ?, finishedDojoTutorial = ?, vanquisherKills = ?, matchcardwins = ?, matchcardlosses = ?, matchcardties = ?, omokwins = ?, omoklosses = ?, omokties = ?, dataString = ?, fquest = ?, jailexpire = ?, partnerId = ?, marriageItemId = ?, lastExpGainTime = ?, ariantPoints = ?, partySearch = ? WHERE id = ?", Statement.RETURN_GENERATED_KEYS)) {
+                try (PreparedStatement ps = con.prepareStatement("UPDATE characters SET level = ?, fame = ?, str = ?, dex = ?, luk = ?, `int` = ?, exp = ?, gachaexp = ?, hp = ?, mp = ?, maxhp = ?, maxmp = ?, sp = ?, ap = ?, gm = ?, skincolor = ?, gender = ?, job = ?, hair = ?, face = ?, map = ?, meso = ?, hpMpUsed = ?, spawnpoint = ?, party = ?, buddyCapacity = ?, messengerid = ?, messengerposition = ?, mountlevel = ?, mountexp = ?, mounttiredness= ?, equipslots = ?, useslots = ?, setupslots = ?, etcslots = ?,  monsterbookcover = ?, vanquisherStage = ?, dojoPoints = ?, lastDojoStage = ?, finishedDojoTutorial = ?, vanquisherKills = ?, matchcardwins = ?, matchcardlosses = ?, matchcardties = ?, omokwins = ?, omoklosses = ?, omokties = ?, dataString = ?, fquest = ?, jailexpire = ?, partnerId = ?, marriageItemId = ?, lastExpGainTime = ?, ariantPoints = ?, partySearch = ?, lockedSp = ? WHERE id = ?", Statement.RETURN_GENERATED_KEYS)) {
                     ps.setInt(1, level);    // thanks CanIGetaPR for noticing an unnecessary "level" limitation when persisting DB data
                     ps.setInt(2, fame);
 
@@ -8283,6 +8298,7 @@ public class Character extends AbstractCharacterObject {
                         ps.setString(13, sp.substring(0, sp.length() - 1));
 
                         ps.setInt(14, remainingAp);
+                        ps.setString(56, Arrays.stream(lockedSp).mapToObj(String::valueOf).collect(Collectors.joining(",")));
                     } finally {
                         statWlock.unlock();
                         effLock.unlock();
@@ -8370,7 +8386,7 @@ public class Character extends AbstractCharacterObject {
                     ps.setTimestamp(53, new Timestamp(lastExpGainTime));
                     ps.setInt(54, ariantPoints);
                     ps.setBoolean(55, canRecvPartySearchInvite);
-                    ps.setInt(56, id);
+                    ps.setInt(57, id);
 
                     int updateRows = ps.executeUpdate();
                     if (updateRows < 1) {
